@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__version__ = '0.39'
+__version__ = '0.40'
 __license__ = 'MIT'
 
 import re
@@ -19,6 +19,7 @@ if os.name == 'nt':
     from shutil import move as _replace_file
 else:
     _replace_file = os.rename
+
 
 _get_abs_path = lambda path: os.path.normpath(os.path.join(os.getcwd(), path))
 
@@ -272,7 +273,7 @@ class Tokenizer(object):
                 for elem in buf:
                     yield elem
 
-    def cut(self, sentence, cut_all=False, HMM=True):
+    def cut(self, sentence, cut_all = False, HMM = True,use_paddle = False):
         '''
         The main function that segments an entire sentence that contains
         Chinese characters into separated words.
@@ -282,8 +283,22 @@ class Tokenizer(object):
             - cut_all: Model type. True for full pattern, False for accurate pattern.
             - HMM: Whether to use the Hidden Markov Model.
         '''
+        is_paddle_installed = False
+        if use_paddle == True:
+            import_paddle_check = import_paddle()
+            is_paddle_installed = check_paddle_install()
         sentence = strdecode(sentence)
-
+        if use_paddle == True and is_paddle_installed == True and import_paddle_check == True:
+            if sentence is None or sentence == "" or sentence == u"":
+                yield sentence
+                return
+            import jieba.lac_small.predict as predict
+            results = predict.get_sent(sentence)
+            for sent in results:
+                if sent is None:
+                    continue
+                yield sent
+            return
         if cut_all:
             re_han = re_han_cut_all
             re_skip = re_skip_cut_all
