@@ -1,25 +1,23 @@
 from __future__ import absolute_import, unicode_literals
-__version__ = '0.40'
+
+__version__ = '0.42'
 __license__ = 'MIT'
 
-import re
-import os
-import sys
-import time
-import logging
 import marshal
+import re
 import tempfile
 import threading
-from math import log
+import time
 from hashlib import md5
-from ._compat import *
+from math import log
+
 from . import finalseg
+from ._compat import *
 
 if os.name == 'nt':
     from shutil import move as _replace_file
 else:
     _replace_file = os.rename
-
 
 _get_abs_path = lambda path: os.path.normpath(os.path.join(os.getcwd(), path))
 
@@ -46,12 +44,11 @@ re_eng = re.compile('[a-zA-Z0-9]', re.U)
 re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
 
 re_skip_default = re.compile("(\r\n|\s)", re.U)
-re_han_cut_all = re.compile("([\u4E00-\u9FD5]+)", re.U)
-re_skip_cut_all = re.compile("[^a-zA-Z0-9+#\n]", re.U)
+
 
 def setLogLevel(log_level):
-    global logger
     default_logger.setLevel(log_level)
+
 
 class Tokenizer(object):
 
@@ -71,7 +68,8 @@ class Tokenizer(object):
     def __repr__(self):
         return '<Tokenizer dictionary=%r>' % self.dictionary
 
-    def gen_pfdict(self, f):
+    @staticmethod
+    def gen_pfdict(f):
         lfreq = {}
         ltotal = 0
         f_name = resolve_filename(f)
@@ -130,7 +128,7 @@ class Tokenizer(object):
 
             load_from_cache_fail = True
             if os.path.isfile(cache_file) and (abs_path == DEFAULT_DICT or
-                os.path.getmtime(cache_file) > os.path.getmtime(abs_path)):
+                                               os.path.getmtime(cache_file) > os.path.getmtime(abs_path)):
                 default_logger.debug(
                     "Loading model from cache %s" % cache_file)
                 try:
@@ -200,15 +198,30 @@ class Tokenizer(object):
     def __cut_all(self, sentence):
         dag = self.get_DAG(sentence)
         old_j = -1
+        eng_scan = 0
+        eng_buf = u''
         for k, L in iteritems(dag):
+            if eng_scan == 1 and not re_eng.match(sentence[k]):
+                eng_scan = 0
+                yield eng_buf
             if len(L) == 1 and k > old_j:
-                yield sentence[k:L[0] + 1]
+                word = sentence[k:L[0] + 1]
+                if re_eng.match(word):
+                    if eng_scan == 0:
+                        eng_scan = 1
+                        eng_buf = word
+                    else:
+                        eng_buf += word
+                if eng_scan == 0:
+                    yield word
                 old_j = L[0]
             else:
                 for j in L:
                     if j > k:
                         yield sentence[k:j + 1]
                         old_j = j
+        if eng_scan == 1:
+            yield eng_buf
 
     def __cut_DAG_NO_HMM(self, sentence):
         DAG = self.get_DAG(sentence)
@@ -273,8 +286,8 @@ class Tokenizer(object):
                 for elem in buf:
                     yield elem
 
-    def cut(self, sentence, cut_all = False, HMM = True,use_paddle = False):
-        '''
+    def cut(self, sentence, cut_all=False, HMM=True, use_paddle=False):
+        """
         The main function that segments an entire sentence that contains
         Chinese characters into separated words.
 
@@ -282,15 +295,12 @@ class Tokenizer(object):
             - sentence: The str(unicode) to be segmented.
             - cut_all: Model type. True for full pattern, False for accurate pattern.
             - HMM: Whether to use the Hidden Markov Model.
-        '''
-        is_paddle_installed = False
-        if use_paddle == True:
-            import_paddle_check = import_paddle()
-            is_paddle_installed = check_paddle_install()
+        """
+        is_paddle_installed = check_paddle_install['is_paddle_installed']
         sentence = strdecode(sentence)
-        if use_paddle == True and is_paddle_installed == True and import_paddle_check == True:
+        if use_paddle and is_paddle_installed:
+            # if sentence is null, it will raise core exception in paddle.
             if sentence is None or sentence == "" or sentence == u"":
-                yield sentence
                 return
             import jieba.lac_small.predict as predict
             results = predict.get_sent(sentence)
@@ -299,12 +309,8 @@ class Tokenizer(object):
                     continue
                 yield sent
             return
-        if cut_all:
-            re_han = re_han_cut_all
-            re_skip = re_skip_cut_all
-        else:
-            re_han = re_han_default
-            re_skip = re_skip_default
+        re_han = re_han_default
+        re_skip = re_skip_default
         if cut_all:
             cut_block = self.__cut_all
         elif HMM:

@@ -1,3 +1,12 @@
+2019-1-13: version 0.42
+1. 修复paddle模式空字符串coredump问题 @JesseyXujin
+2. 修复cut_all模式切分丢字问题 @fxsjy
+3. paddle安装检测优化 @vissssa
+
+2019-1-8: version 0.41
+1. 开启paddle模式更友好
+2. 修复cut_all模式不支持中英混合词的bug
+
 2019-12-25: version 0.40
 1. 支持基于paddle的深度学习分词模式(use_paddle=True); by @JesseyXujin, @xyzhou-puck
 2. 修复自定义Tokenizer实例的add_word方法指向全局的问题; by @linhx13 
